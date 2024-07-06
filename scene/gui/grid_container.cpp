@@ -41,6 +41,12 @@ void GridContainer::_notification(int p_what) {
 			RBSet<int> col_expanded; // Columns which have the SIZE_EXPAND flag set.
 			RBSet<int> row_expanded; // Rows which have the SIZE_EXPAND flag set.
 
+			if (vertical) {
+				rows = ceil(get_child_count() / (float)columns);
+			} else {
+				columns = ceil(get_child_count() / (float)rows);
+			}
+
 			// Compute the per-column/per-row data.
 			int valid_controls_index = 0;
 			for (int i = 0; i < get_child_count(); i++) {
@@ -49,8 +55,17 @@ void GridContainer::_notification(int p_what) {
 					continue;
 				}
 
-				int row = valid_controls_index / columns;
-				int col = valid_controls_index % columns;
+				int row;
+				int col;
+
+				if (vertical) {
+					row = valid_controls_index / columns;
+					col = valid_controls_index % columns;
+				} else {
+					row = valid_controls_index % rows;
+					col = valid_controls_index / rows;
+				}
+
 				valid_controls_index++;
 
 				Size2i ms = c->get_combined_minimum_size();
@@ -73,8 +88,16 @@ void GridContainer::_notification(int p_what) {
 				}
 			}
 
-			int max_col = MIN(valid_controls_index, columns);
-			int max_row = ceil((float)valid_controls_index / (float)columns);
+			int max_col;
+			int max_row;
+
+			if (vertical) {
+				max_col = MIN(valid_controls_index, columns);
+				max_row = ceil((float)valid_controls_index / (float)columns);
+			} else {
+				max_col = ceil((float)valid_controls_index / (float)rows);
+				max_row = MIN(valid_controls_index, rows);
+			}
 
 			// Consider all empty columns expanded.
 			for (int i = valid_controls_index; i < columns; i++) {
@@ -220,10 +243,12 @@ void GridContainer::_notification(int p_what) {
 				if (rtl) {
 					Point2 p(col_ofs - s.width, row_ofs);
 					fit_child_in_rect(c, Rect2(p, s));
+
 					col_ofs -= s.width + theme_cache.h_separation;
 				} else {
 					Point2 p(col_ofs, row_ofs);
 					fit_child_in_rect(c, Rect2(p, s));
+
 					col_ofs += s.width + theme_cache.h_separation;
 				}
 			}
@@ -238,6 +263,38 @@ void GridContainer::_notification(int p_what) {
 			queue_sort();
 		} break;
 	}
+}
+
+void GridContainer::_validate_property(PropertyInfo &p_property) const {
+	if (is_fixed && p_property.name == "vertical") {
+		p_property.usage = PROPERTY_USAGE_NONE;
+	} else if (p_property.name == "rows") {
+		p_property.usage = PROPERTY_USAGE_DEFAULT;
+		if (vertical) {
+			p_property.usage |= PROPERTY_USAGE_READ_ONLY;
+		}
+	} else if (p_property.name == "columns") {
+		p_property.usage = PROPERTY_USAGE_DEFAULT;
+		if (!vertical) {
+			p_property.usage |= PROPERTY_USAGE_READ_ONLY;
+		}
+	}
+}
+
+void GridContainer::set_rows(int p_rows) {
+	ERR_FAIL_COND(p_rows < 1);
+
+	if (rows == p_rows) {
+		return;
+	}
+
+	rows = p_rows;
+	queue_sort();
+	update_minimum_size();
+}
+
+int GridContainer::get_rows() const {
+	return rows;
 }
 
 void GridContainer::set_columns(int p_columns) {
@@ -256,15 +313,33 @@ int GridContainer::get_columns() const {
 	return columns;
 }
 
+void GridContainer::set_vertical(bool p_vertical) {
+	ERR_FAIL_COND_MSG(is_fixed, vformat("Can't change orientation of %s.", get_class()));
+	vertical = p_vertical;
+	queue_sort();
+	update_minimum_size();
+	notify_property_list_changed();
+}
+
+bool GridContainer::is_vertical() const {
+	return vertical;
+}
+
 int GridContainer::get_h_separation() const {
 	return theme_cache.h_separation;
 }
 
 void GridContainer::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_rows", "rows"), &GridContainer::set_rows);
+	ClassDB::bind_method(D_METHOD("get_rows"), &GridContainer::get_rows);
 	ClassDB::bind_method(D_METHOD("set_columns", "columns"), &GridContainer::set_columns);
 	ClassDB::bind_method(D_METHOD("get_columns"), &GridContainer::get_columns);
+	ClassDB::bind_method(D_METHOD("set_vertical", "vertical"), &GridContainer::set_vertical);
+	ClassDB::bind_method(D_METHOD("is_vertical"), &GridContainer::is_vertical);
 
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "rows", PROPERTY_HINT_RANGE, "1,1024,1"), "set_rows", "get_rows");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "columns", PROPERTY_HINT_RANGE, "1,1024,1"), "set_columns", "get_columns");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "vertical"), "set_vertical", "is_vertical");
 
 	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, GridContainer, h_separation);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, GridContainer, v_separation);
@@ -283,8 +358,18 @@ Size2 GridContainer::get_minimum_size() const {
 		if (!c) {
 			continue;
 		}
-		int row = valid_controls_index / columns;
-		int col = valid_controls_index % columns;
+
+		int row;
+		int col;
+
+		if (vertical) {
+			row = valid_controls_index / columns;
+			col = valid_controls_index % columns;
+		} else {
+			row = valid_controls_index % rows;
+			col = valid_controls_index / rows;
+		}
+
 		valid_controls_index++;
 
 		Size2i ms = c->get_combined_minimum_size();
@@ -319,4 +404,6 @@ Size2 GridContainer::get_minimum_size() const {
 	return ms;
 }
 
-GridContainer::GridContainer() {}
+GridContainer::GridContainer(bool p_vertical) {
+	vertical = p_vertical;
+}
