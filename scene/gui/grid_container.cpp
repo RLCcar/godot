@@ -49,8 +49,17 @@ void GridContainer::_notification(int p_what) {
 					continue;
 				}
 
-				int row = valid_controls_index / columns;
-				int col = valid_controls_index % columns;
+				int row;
+				int col;
+
+				if (vertical) {
+ 					row = valid_controls_index / columns;
+					col = valid_controls_index % columns;
+				} else {
+					row = valid_controls_index % columns;
+					col = valid_controls_index / columns;
+				}
+
 				valid_controls_index++;
 
 				Size2i ms = c->get_combined_minimum_size();
@@ -73,12 +82,25 @@ void GridContainer::_notification(int p_what) {
 				}
 			}
 
-			int max_col = MIN(valid_controls_index, columns);
-			int max_row = ceil((float)valid_controls_index / (float)columns);
+			int max_col;
+			int max_row;
 
-			// Consider all empty columns expanded.
-			for (int i = valid_controls_index; i < columns; i++) {
-				col_expanded.insert(i);
+			if (vertical) {
+				max_col = MIN(valid_controls_index, columns);
+				max_row = ceil((float)valid_controls_index / (float)columns);
+
+				// Consider all empty columns expanded.
+				for (int i = valid_controls_index; i < columns; i++) {
+					col_expanded.insert(i);
+				}
+			} else {
+				max_col = ceil((float)valid_controls_index / (float)columns);
+				max_row = MIN(valid_controls_index, columns);
+
+				// Consider all empty rows expanded.
+				for (int i = valid_controls_index; i < columns; i++) {
+					row_expanded.insert(i);
+				}
 			}
 
 			// Evaluate the remaining space for expanded columns/rows.
@@ -187,25 +209,50 @@ void GridContainer::_notification(int p_what) {
 				if (!c) {
 					continue;
 				}
-				int row = valid_controls_index / columns;
-				int col = valid_controls_index % columns;
-				valid_controls_index++;
+				int row;
+				int col;
 
-				if (col == 0) {
-					if (rtl) {
-						col_ofs = get_size().width;
-					} else {
-						col_ofs = 0;
+				if (vertical) {
+					row = valid_controls_index / columns;
+					col = valid_controls_index % columns;
+
+					if (col == 0) {
+						if (rtl) {
+							col_ofs = get_size().width;
+						} else {
+							col_ofs = 0;
+						}
+						if (row > 0) {
+							row_ofs += (row_expanded.has(row - 1) ? row_expand : row_minh[row - 1]) + theme_cache.v_separation;
+
+							if (row_expanded.has(row - 1) && row - 1 < row_remaining_pixel_index) {
+								// Apply the remaining pixel of the previous row.
+								row_ofs++;
+							}
+						}
 					}
-					if (row > 0) {
-						row_ofs += (row_expanded.has(row - 1) ? row_expand : row_minh[row - 1]) + theme_cache.v_separation;
+				} else {
+					row = valid_controls_index % columns;
+					col = valid_controls_index / columns;
 
-						if (row_expanded.has(row - 1) && row - 1 < row_remaining_pixel_index) {
-							// Apply the remaining pixel of the previous row.
-							row_ofs++;
+					if (row == 0) {
+						if (rtl) {
+							row_ofs = get_size().height;
+						} else {
+							row_ofs = 0;
+						}
+						if (col > 0) {
+							col_ofs += (col_expanded.has(col - 1) ? col_expand : col_minw[col - 1]) + theme_cache.h_separation;
+
+							if (col_expanded.has(col - 1) && col - 1 < col_remaining_pixel_index) {
+								// Apply the remaining pixel of the previous column.
+								col_ofs++;
+							}
 						}
 					}
 				}
+				
+				valid_controls_index++;
 
 				Size2 s(col_expanded.has(col) ? col_expand : col_minw[col], row_expanded.has(row) ? row_expand : row_minh[row]);
 
@@ -220,11 +267,21 @@ void GridContainer::_notification(int p_what) {
 				if (rtl) {
 					Point2 p(col_ofs - s.width, row_ofs);
 					fit_child_in_rect(c, Rect2(p, s));
-					col_ofs -= s.width + theme_cache.h_separation;
+
+					if (vertical) {
+						col_ofs -= s.width + theme_cache.h_separation;
+					} else {
+						row_ofs -= s.height + theme_cache.v_separation;
+					}
 				} else {
 					Point2 p(col_ofs, row_ofs);
 					fit_child_in_rect(c, Rect2(p, s));
-					col_ofs += s.width + theme_cache.h_separation;
+
+					if (vertical) {
+						col_ofs += s.width + theme_cache.h_separation;
+					} else {
+						row_ofs += s.height + theme_cache.v_separation;
+					}
 				}
 			}
 		} break;
@@ -237,6 +294,12 @@ void GridContainer::_notification(int p_what) {
 		case NOTIFICATION_LAYOUT_DIRECTION_CHANGED: {
 			queue_sort();
 		} break;
+	}
+}
+
+void GridContainer::_validate_property(PropertyInfo &p_property) const {
+	if (is_fixed && p_property.name == "vertical") {
+		p_property.usage = PROPERTY_USAGE_NONE;
 	}
 }
 
@@ -256,6 +319,18 @@ int GridContainer::get_columns() const {
 	return columns;
 }
 
+void GridContainer::set_vertical(bool p_vertical) {
+	ERR_FAIL_COND_MSG(is_fixed, vformat("Can't change orientation of %s.", get_class()));
+	vertical = p_vertical;
+	queue_sort();
+	update_minimum_size();
+	//_notification(NOTIFICATION_SORT_CHILDREN);
+}
+
+bool GridContainer::is_vertical() const {
+	return vertical;
+}
+
 int GridContainer::get_h_separation() const {
 	return theme_cache.h_separation;
 }
@@ -263,8 +338,11 @@ int GridContainer::get_h_separation() const {
 void GridContainer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_columns", "columns"), &GridContainer::set_columns);
 	ClassDB::bind_method(D_METHOD("get_columns"), &GridContainer::get_columns);
+	ClassDB::bind_method(D_METHOD("set_vertical", "vertical"), &GridContainer::set_vertical);
+	ClassDB::bind_method(D_METHOD("is_vertical"), &GridContainer::is_vertical);
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "columns", PROPERTY_HINT_RANGE, "1,1024,1"), "set_columns", "get_columns");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "vertical"), "set_vertical", "is_vertical");
 
 	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, GridContainer, h_separation);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, GridContainer, v_separation);
@@ -283,8 +361,18 @@ Size2 GridContainer::get_minimum_size() const {
 		if (!c) {
 			continue;
 		}
-		int row = valid_controls_index / columns;
-		int col = valid_controls_index % columns;
+
+		int row;
+		int col;
+
+		if (vertical) {
+			row = valid_controls_index / columns;
+			col = valid_controls_index % columns;
+		} else {
+			row = valid_controls_index % columns;
+			col = valid_controls_index / columns;
+		}
+
 		valid_controls_index++;
 
 		Size2i ms = c->get_combined_minimum_size();
@@ -319,4 +407,6 @@ Size2 GridContainer::get_minimum_size() const {
 	return ms;
 }
 
-GridContainer::GridContainer() {}
+GridContainer::GridContainer(bool p_vertical) {
+	vertical = p_vertical;
+}
