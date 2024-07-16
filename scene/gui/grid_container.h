@@ -42,6 +42,7 @@ class GridContainer : public Container {
 	} theme_cache;
 
 private:
+	int rows = 1;
 	int columns = 1;
 	bool vertical = true;
 
@@ -53,6 +54,9 @@ protected:
 	static void _bind_methods();
 
 public:
+	void set_rows(int p_rows);
+	int get_rows() const;
+
 	void set_columns(int p_columns);
 	int get_columns() const;
 
