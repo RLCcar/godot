@@ -318,7 +318,7 @@ void GridContainer::set_vertical(bool p_vertical) {
 	vertical = p_vertical;
 	queue_sort();
 	update_minimum_size();
-	notify_property_list_changed();
+	//_notification(NOTIFICATION_SORT_CHILDREN);
 }
 
 bool GridContainer::is_vertical() const {
