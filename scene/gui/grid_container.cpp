@@ -59,7 +59,7 @@ void GridContainer::_notification(int p_what) {
 				int col;
 
 				if (vertical) {
- 					row = valid_controls_index / columns;
+					row = valid_controls_index / columns;
 					col = valid_controls_index % columns;
 				} else {
 					row = valid_controls_index % rows;

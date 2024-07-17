@@ -74,8 +74,8 @@ class HGridContainer : public GridContainer {
 	GDCLASS(HGridContainer, GridContainer);
 
 public:
-	HGridContainer():
-		GridContainer(false) { is_fixed = true; }
+	HGridContainer() :
+			GridContainer(false) { is_fixed = true; }
 };
 
 class VGridContainer : public GridContainer {
@@ -83,7 +83,7 @@ class VGridContainer : public GridContainer {
 
 public:
 	VGridContainer() :
-		GridContainer(true) { is_fixed = true; }
+			GridContainer(true) { is_fixed = true; }
 };
 
 #endif // GRID_CONTAINER_H
